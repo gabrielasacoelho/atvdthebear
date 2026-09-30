@@ -1,0 +1,45 @@
+# Parte II – Questões Teóricas
+
+**1. MVVM e responsabilidades.** MVVM (Model–View–ViewModel) separa a aplicação em três camadas. **Model**: representa os dados e regras básicas (ex.: `Pedido`, com total e classificação). **View**: a interface (widgets/páginas); só exibe dados e captura eventos do usuário. **ViewModel**: intermediária; guarda o estado da tela, expõe dados e ações para a View e chama a camada de dados, notificando a View quando algo muda.
+
+**2. Papel do Service.** Concentra o acesso aos dados: abre o banco SQLite, cria tabelas e executa INSERT/SELECT/UPDATE/DELETE. A ViewModel só chama métodos do Service, sem conhecer SQL.
+
+**3. Por que não acessar o banco na View?** Mistura interface com persistência, dificulta testes, manutenção e reutilização, duplica código, e uma mudança no banco obrigaria alterar várias telas. Também viola a responsabilidade única de cada camada.
+
+**4. Função do Provider.** Disponibiliza objetos (ViewModels) na árvore de widgets e faz os widgets se reconstruírem quando esses objetos mudam. Assim a View acessa a ViewModel (`context.read`/`context.watch`) sem passar instâncias manualmente.
+
+**5. ChangeNotifier e notifyListeners().** `ChangeNotifier` é uma classe que mantém uma lista de "ouvintes". `notifyListeners()` avisa esses ouvintes de que o estado mudou, fazendo os widgets que dependem dele serem reconstruídos.
+
+**6. Sem notifyListeners().** Os dados mudam na ViewModel, mas a interface não é reconstruída e continua mostrando os valores antigos.
+
+**7. SQLite.** É um banco de dados relacional leve, embutido no aplicativo, sem servidor, que armazena os dados em um arquivo local. Vantagens: funciona offline, é rápido, leve, gratuito, usa SQL e é suportado nativamente em Android/iOS.
+
+**8. RAM x SQLite.** Dados em variáveis (RAM) são temporários e se perdem ao fechar/reiniciar o app. Dados no SQLite ficam gravados em disco e permanecem entre execuções.
+
+**9. CRUD.** Create (criar novos registros), Read (ler/consultar), Update (atualizar registros existentes) e Delete (remover registros).
+
+**10. Comandos SQL.** `INSERT`: insere novos registros. `SELECT`: consulta registros. `UPDATE`: altera registros existentes. `DELETE`: remove registros.
+
+**11. Fluxo do cadastro.** **View**: o usuário preenche o formulário e clica no botão; a View chama um método da ViewModel com os dados. **ViewModel**: valida/monta o objeto Model, chama o Service e, ao terminar, atualiza seu estado e chama `notifyListeners()`. **Service**: transforma o objeto em mapa e executa o `INSERT`. **SQLite**: grava o registro no arquivo do banco. A resposta volta pelo mesmo caminho e a View é atualizada.
+
+**12. Dados sumindo ao reiniciar.** Os dados estavam apenas em memória (listas/variáveis) e não no SQLite; ou o banco era recriado/apagado a cada inicialização (ex.: `deleteDatabase`, banco em memória, ou `onCreate` recriando tabelas); ou o `insert` nunca foi executado/aguardado (`await` ausente).
+
+**13. Tela com valor antigo.** A ViewModel não chamou `notifyListeners()` após o UPDATE, ou não recarregou a lista do banco depois da alteração; também pode ser que a View use `context.read` (não observa mudanças) em vez de `watch`/`Consumer`, ou que a lista exibida seja uma cópia antiga.
+
+**14. Violação no código.** A View chama diretamente `BancoService().inserirPedido(...)`, pulando a ViewModel (viola View ➔ ViewModel ➔ Service). Correto:
+
+```dart
+// View
+onPressed: () async {
+  await context.read<PedidoViewModel>().adicionar(nomeController.text);
+}
+
+// ViewModel
+Future<void> adicionar(String nome) async {
+  await _service.inserirPedido(nome);
+  await carregar();       // recarrega a lista
+  notifyListeners();
+}
+```
+
+**15. Benefícios da separação.** *Manutenção*: mudanças ficam isoladas em uma camada (ex.: trocar o banco só afeta o Service). *Testabilidade*: ViewModels e Services podem ser testados sem interface, com dados falsos (mocks). *Escalabilidade*: código organizado permite adicionar telas e funcionalidades e dividir o trabalho entre desenvolvedores sem causar conflitos ou acoplamento excessivo.
